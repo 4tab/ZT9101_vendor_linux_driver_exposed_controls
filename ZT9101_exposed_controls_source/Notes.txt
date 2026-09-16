@@ -1,0 +1,280 @@
+ZT9101 ZTop USB Wi-Fi driver — configuration notes
+====================================================
+
+This revision adds shared PHY-family and short-GI controls plus HT MCS limiting, while preserving all existing wifi.cfg option names. The driver remains a 2.4 GHz 802.11n device and the
+configuration file is read when the module is loaded.
+
+Load example
+------------
+  sudo insmod ./zt9101_ztopmac_usb.ko cfg=./wifi.cfg
+
+Configuration is primarily module-load configuration. TX power also has a live
+cfg80211/iw path, as verified during testing.
+
+1. wifi.cfg reference
+---------------------
+
+Firmware / interface
+  fw=...
+      Main firmware path.
+  fw1=...
+      Alternate firmware path used by the driver when driver_flag selects it.
+  ifname=...
+      Primary interface name.
+  if2name=...
+      Secondary interface name.
+
+Operating mode / channel
+  work_mode=sta|ap|apsta|repeat|second|secondary|adhoc|monitor|mesh
+      Operating mode. Existing names are preserved.
+      - sta: Linux station mode.
+      - ap: Linux AP mode (requires AP support).
+      - apsta: NIC0=STA and NIC1=AP; requires CONFIG_STA_AND_AP_MODE=y.
+      - repeat: same supported two-NIC STA+AP topology; Linux bridge/routing provides forwarding.
+      - second/secondary: NIC0=STA and NIC1=AP when two-NIC AP support is built.
+      - adhoc: existing IBSS implementation.
+      - monitor: existing monitor implementation when monitor support is built.
+      - mesh: Linux NL80211 mesh interface backed by the existing IBSS data path.
+        The firmware has no native 802.11s MCU mode, so HWMP/MPM/mesh action
+        processing is not implemented as native firmware functionality.
+  channel=<1..>
+      Initial channel.
+  bw=20M|40M
+      Initial channel width. 40 MHz can increase throughput when the AP and RF
+      environment support it, but can increase interference/coexistence issues.
+  channelplan=<numeric>
+      Regulatory/channel-plan selection. Use the platform's intended value.
+  ssid=...
+      Used by modes that create/manage an SSID; not the normal STA selector.
+
+TX power / RF
+  txpower_dbm=<0..30>
+      Requested TX power in dBm. The hardware uses calibrated RF power tables,
+      so this is not necessarily a linear RF-output control.
+
+      Testing confirmed the cfg80211 path accepts mBm and reports the selected
+      state through iw. Examples:
+        1200 mBm -> 12 dBm
+        1500 mBm -> 15 dBm
+        1900 mBm -> 19 dBm
+        2000 mBm -> 20 dBm
+        2100 mBm -> 21 dBm
+        2500 mBm -> 25 dBm
+
+      Higher requested values can increase transmit output, heat and current
+      consumption and may exceed regulatory/antenna limits. Treat >20 dBm as
+      CAUTION unless the complete RF path and local rules are known.
+  rf_power=0|1|2 (or low|medium|high)
+      Existing calibrated RF table selector. Name preserved.
+  rf_power1=0|1|2
+      Existing XV20 RF selector. Name preserved.
+  rf_power2=0|1|2
+      Existing XV30 RF selector. Name preserved.
+  vco_cur=0..32 or 0xFF
+      VCO current/calibration control. 0xFF keeps the firmware calibration
+      sentinel. CAUTION: changing this can affect RF lock, sensitivity and
+      stability.
+
+PHY / HT / rate control
+  wireless_mode=auto|b|g|n|bg|gn|bn|bgn
+      NEW. Shared PHY-family policy for STA/peer rate handling. `auto` preserves
+      normal peer negotiation. Other values mask the allowed 2.4 GHz family
+      bits, so combinations can be selected explicitly. `n` means HT-only;
+      `bg` permits legacy B/G but not N; `bgn` permits all three. This does
+      not manufacture capabilities the peer did not advertise.
+  sgi_20=auto|0|1
+      NEW. Shared 20 MHz short-GI policy. `auto` follows the peer; `0` disables
+      short GI; `1` permits it only when the peer advertises support.
+  sgi_40=auto|0|1
+      NEW. Same policy for 40 MHz short GI. Hardware/peer 40 MHz support still
+      applies.
+  ht_mcs_max=auto|0..7
+      NEW. Limits the maximum one-stream HT MCS used for the connection.
+
+      auto
+          Keep the AP-advertised MCS set unchanged.
+      0
+          Allow MCS0 only.
+      1..7
+          Allow MCS0 through the selected maximum, intersected with the MCS
+          values actually advertised by the AP.
+
+      Lowering this value generally lowers the maximum PHY rate and can make a
+      marginal link more conservative. It does not force every packet to that
+      MCS; it places an upper ceiling on the HT MCS set presented to the rate
+      controller.
+
+      The current ZT9101 path is configured for one spatial stream, so this
+      option intentionally covers MCS0..MCS7 rather than pretending that
+      MCS8..MCS15 are independently usable.
+
+  ldpc_support=0|1
+      Advertise/use LDPC capability where supported. INTEREST.
+  tx_stbc_support=0|1
+      Advertise TX STBC capability. INTEREST.
+  sm_ps_support=0|1
+      HT spatial-multiplexing power-save capability. INTEREST.
+  wdn_sleep_support=0|1
+      Station sleep support. Disabling can improve responsiveness but can reduce
+      power-saving behavior.
+  tx_data_rpt=0|1
+      Request TX data reports in descriptors. Mainly useful for diagnostics and
+      rate-control investigation; may add processing overhead.
+
+Aggregation
+  ba_func_tx=0|1
+      TX Block Ack/aggregation enable.
+  ba_func_rx=0|1
+      RX Block Ack/aggregation enable.
+  max_ampdu_len_ulimit=<0..7>
+      Upper limit for negotiated RX AMPDU size factor. Higher can help bulk
+      throughput but increases buffering/retry exposure.
+  max_rx_ampdu_factor=<0..3>
+      HT RX AMPDU factor. Higher permits larger aggregates.
+  best_ampdu_density=<0..7>
+      HT AMPDU density preference. Lower permits denser aggregation; higher
+      spaces MPDUs more conservatively.
+
+Automatic rate selection
+  ars_policy=<numeric>
+      Existing automatic-rate-selection policy selector. 0 is the baseline.
+      The source does not provide a complete public semantic table for every
+      non-zero value, so non-zero values remain experimental.
+
+RTS / fragmentation / VCS
+  rts_thresh=1..2347
+      RTS/CTS trigger threshold. Lower values cause RTS/CTS to be considered
+      more often; this adds overhead but can help hidden-node/collision cases.
+  frag_thresh=256..2346
+      Fragmentation threshold. Lower values create more fragments and overhead;
+      higher values normally favor clean-link efficiency.
+  vcs_en=0|1
+      0 = automatic; 1 = force the selected VCS type.
+  vcs_type=0|1|2
+      0 = none, 1 = RTS/CTS, 2 = CTS-to-self.
+
+Scanning
+  scan_active=0|1
+      0 = passive; 1 = active probe scanning.
+  scan_ch_to=<1..255>
+      Per-channel scan dwell timeout in milliseconds. Higher can hear weak
+      networks more reliably but makes scans slower.
+  scan_prb_times=<1..255>
+      Probe request repetitions. Higher can improve scan robustness but costs
+      time and airtime.
+  scan_que_deep=<1..255>
+      Scan-result queue depth.
+  scan_que_node_ttl=<1..255>
+      Scan-result lifetime.
+
+Other
+  wlan_guard=0|1
+      WLAN status/timing guard. Keep the known-good value unless troubleshooting.
+  sdio_clk_pwr_save=0|1
+      SDIO-only power-saving option; ignored by this USB device.
+
+2. Recommended test ranges
+---------------------------
+
+GOOD FIRST TESTS
+  ht_mcs_max=auto,7,5,3,1,0
+  scan_active / scan timing values
+  AMPDU settings
+  txpower_dbm within the normal calibrated range
+
+CAUTION
+  txpower_dbm >20 dBm
+  vco_cur
+  rts_thresh / frag_thresh
+  forced VCS
+  channelplan
+  bw=40M in congested RF conditions
+
+INTEREST / EXPERIMENTAL
+  ars_policy non-zero values
+  LDPC / STBC / SMPS controls
+  sleep/reporting controls
+
+3. What MCS control actually changes
+------------------------------------
+
+The AP's HT Capability IE is parsed by the driver, including the peer MCS set.
+The driver then builds the HT MCS set used by the connection/rate-control path.
+The new ht_mcs_max setting masks only MCS values above the requested ceiling and
+never manufactures MCS support that the AP did not advertise.
+
+The resulting rate bitmap is sent to the MCU by the existing rate-control path.
+The driver logs the resulting RA bitmap, so MCS experiments can be correlated
+with the selected rate-control state.
+
+Example test sequence:
+  ht_mcs_max=auto
+  ht_mcs_max=7
+  ht_mcs_max=5
+  ht_mcs_max=3
+  ht_mcs_max=0
+
+For each run, compare:
+  iw dev <iface> info
+  iw dev <iface> link
+  dmesg | grep -E 'HT MCS|MacID:|network_type|User Rate ID'
+
+`iw link` RSSI is received-signal information. It is not a calibrated reading
+of the adapter's TX output, so changing TX power does not have to produce a
+matching RSSI change.
+
+4. Existing implementation details
+-----------------------------------
+
+The driver already parses HT Capability information, including SGI, AMPDU and
+MCS data. The MCU rate-bitmap path already consumes the peer MCS set and SGI
+state. This revision uses those existing paths rather than introducing a second
+rate-control mechanism.
+
+Existing wifi.cfg names are preserved. New configuration is added only where a
+corresponding existing driver path can consume it safely.
+
+5. Build / Linux mode notes
+---------------------------
+
+`CONFIG_WIFI_MODE` controls which code is compiled. The runtime `work_mode`
+value is separate: Linux cfg80211 can change the interface type at runtime
+when that mode was compiled in.
+
+For AP+STA concurrency, build with:
+  CONFIG_STA_AND_AP_MODE=y
+  CONFIG_WIFI_MODE=sta   (AP support is automatically compiled for APSTA)
+
+Then `work_mode=apsta` maps NIC0 to STA and NIC1 to AP. Both interfaces must
+share the driver's single-channel constraint; the cfg80211 interface-combination
+advertisement remains limited to one channel.
+
+Build verification completed against the installed 6.12.96 kernel headers for:
+  1) default/all-mode build
+  2) CONFIG_WIFI_MODE=sta CONFIG_STA_AND_AP_MODE=y APSTA build
+Both completed successfully.
+
+6. USB note
+------------
+
+The device is a USB high-speed ZT9101 NIC. Earlier testing identified the
+2-metre USB extension as a likely source of USB-side instability. Keep that
+physical USB path unchanged while doing PHY/MCS comparisons so RF results are
+not mixed with USB transport problems.
+
+
+### Runtime work modes
+
+The cfg parser uses exact matching, so `apsta` can no longer be mistaken for `ap`.
+
+`repeat` and `second`/`secondary` resolve to the supported two-NIC STA+AP topology
+when `CONFIG_STA_AND_AP_MODE=y`; they do not send the unsupported legacy repeat/second
+MCU modes. Linux bridge/routing is responsible for forwarding between interfaces.
+
+`mesh` is now exposed through cfg80211 as `NL80211_IFTYPE_MESH_POINT` and implements
+`join_mesh`/`leave_mesh`. Because the ZT9101 firmware exposes no native 802.11s operation
+mode, those callbacks deliberately reuse the driver's existing IBSS engine. This makes
+Linux mesh configuration commands usable without issuing the previously rejected
+`ZT_MESH_MODE` MCU opcode, but it is not a native 802.11s implementation: HWMP routing,
+mesh peering management (MPM), mesh path tables, and mesh action-frame semantics are
+not provided by the firmware/driver.

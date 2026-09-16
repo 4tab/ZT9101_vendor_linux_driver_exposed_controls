@@ -1,0 +1,29 @@
+ZT9101 exposed-controls TODO
+============================
+
+Completed
+---------
+[x] Preserve all existing cfg parser keys in wifi.cfg.
+[x] Expose scan timing, probe count, active/passive scan, queue depth and TTL.
+[x] Expose RF table selectors rf_power/rf_power1/rf_power2.
+[x] Expose txpower_dbm and document its current 0..30 dBm driver-side bound.
+[x] Expose vco_cur and legacy vco_curr spelling.
+[x] Expose RTS/fragmentation and virtual-carrier-sense controls.
+[x] Expose HT MCS, LDPC, TX-STBC, SM-PS, sleep and TX-report controls.
+[x] Expose A-MPDU/BA controls.
+[x] Expose wireless-mode and SGI controls.
+[x] Expose SDIO clock power-save control.
+[x] Document experimental RF/PHY/mode settings at the bottom of wifi.cfg.
+[x] Keep dangerous experiments commented out by default.
+
+Not recommended / intentionally not enabled
+--------------------------------------------
+[ ] Remove the driver-side txpower_dbm ceiling without first proving the
+    firmware/RF calibration path accepts values above the current range.
+[ ] Replace VCO bounds with unrestricted 8-bit writes.
+[ ] Add arbitrary raw RF-register write/read controls to wifi.cfg.
+[ ] Force RF calibration/IQK routines from configuration without a verified
+    MCU command/state machine path.
+[ ] Enable mesh by default; the current IBSS-backed mesh path has demonstrated
+    instability/crash behaviour.
+[ ] Force PHY capabilities that are not confirmed by the adapter calibration.

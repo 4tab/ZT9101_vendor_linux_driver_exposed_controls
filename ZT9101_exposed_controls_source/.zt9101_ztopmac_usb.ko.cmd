@@ -1,0 +1,1 @@
+savedcmd_zt9101_ztopmac_usb.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T /usr/src/linux-headers-6.17.0-35-generic/scripts/module.lds -o zt9101_ztopmac_usb.ko zt9101_ztopmac_usb.o zt9101_ztopmac_usb.mod.o .module-common.o

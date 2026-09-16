@@ -1,0 +1,1 @@
+sup && sudo rmmod zt9101_ztopmac_usb.ko && sudo insmod ./zt9101_ztopmac_usb.ko cfg=./wifi.cfg

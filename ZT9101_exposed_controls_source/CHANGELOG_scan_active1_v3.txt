@@ -1,0 +1,36 @@
+ZT9101 ZTop scan/auth stability v3
+
+Baseline: zt9101_auth_stability_v2_source
+Configuration: scan_active=1, vco_cur=31
+
+Changes
+=======
+1. Active scanning is enabled by default and in wifi.cfg.
+2. Scan requests can hold up to ZT_SCAN_REQ_CHANNEL_NUM channels instead of being
+   accidentally capped by MAX_CHANNEL_NUM (14). Hardware/channel-plan limits are
+   still enforced when channels are actually programmed.
+3. Fixed a scan request copy bug that copied the caller's full channel count even
+   when the request had already been capped.
+4. Added bounds checking to management-IE walking. Malformed/truncated IEs no
+   longer make the parser walk beyond the supplied IE buffer.
+5. Tightened scan SSID matching to require equal length and equal contents.
+6. Added management-frame IE-length validation before scan parsing.
+7. Active scan management TX is serialized so the legacy USB firmware is not fed
+   stacked management URBs during probe scanning.
+8. Scan cleanup/recovery no longer touches the HIF after surprise USB removal.
+9. Scan queue refresh and RX watch are skipped after HIF removal.
+10. Scan configuration values are logged at scan start and parser inputs are
+    bounded to their field widths.
+11. cfg80211 TX power is no longer a fixed no-op/get=12 implementation. iw
+    set/get txpower is wired to the driver's calibrated L/M/H RF power tables,
+    with the requested dBm value retained for get_tx_power.
+12. TX-power changes are rejected while a scan is running and rolled back if the
+    firmware RF-power command fails.
+13. Existing vco_cur=31 changes and management/WPA/RSN/auth safety fixes from the
+    previous v2 source are retained.
+
+Important limitation
+====================
+The supplied environment does not contain /lib/modules/$(uname -r)/build, so a
+kernel module build could not be completed here. The source was inspected and
+patched, but the final .ko must be built against the target kernel headers.
