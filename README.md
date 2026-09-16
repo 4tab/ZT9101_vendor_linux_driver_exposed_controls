@@ -33,6 +33,8 @@ make clean && make && sudo insmod ./zt9101_ztopmac_usb.ko cfg=./wifi.cfg
 
 ## Important implementation detail
 
+`suspend resume functionality disabled`, on PC sleep, unplug and replug device *****
+
 `txpower_dbm` is not a direct linear DAC value in the current driver. The
 parser maps the requested value to the existing calibrated low/medium/high
 RF table selection and retains the requested dBm value for cfg80211/runtime
