@@ -24,6 +24,13 @@ inventing configuration keys with no implementation behind them.
 - WLAN status guard
 - SDIO clock power-save
 
+##Usage 
+
+In terminal: 
+
+make clean && make && sudo insmod ./zt9101_ztopmac_usb.ko cfg=./wifi.cfg
+
+
 ## Important implementation detail
 
 `txpower_dbm` is not a direct linear DAC value in the current driver. The
